@@ -52,6 +52,7 @@ async function run() {
 
     const db = client.db('plantNet-2')
     const userCollection = db.collection('users')
+    const plantCollection = db.collection('plants')
 
     // save or update user
     app.post('/users/:email', async (req, res) => {
@@ -98,6 +99,13 @@ async function run() {
       } catch (err) {
         res.status(500).send(err)
       }
+    })
+
+    // save a plant data in db
+    app.post('/plants', async (req, res) => {
+      const plant = req.body;
+      const result = await plantCollection.insertOne(plant);
+      res.send(result);
     })
 
     // Send a ping to confirm a successful connection
