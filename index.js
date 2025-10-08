@@ -92,6 +92,14 @@ async function run() {
       res.send(result);
     })
 
+    // get all user data
+    app.get('/all-users/:email', verifyToken, async (req, res) => {
+      const email = req.params.email;
+      const query = { email: { $ne: email } };
+      const result = await userCollection.find(query).toArray();
+      res.send(result);
+    })
+
     // get user role
     app.get('/users/role/:email', async (req, res) => {
       const email = req.params.email;
