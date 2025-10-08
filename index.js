@@ -57,7 +57,7 @@ async function run() {
     const plantCollection = db.collection('plants')
     const orderCollection = db.collection('orders')
 
-    // save or update user
+    // save or update a user in db
     app.post('/users/:email', async (req, res) => {
       const email = req.params.email;
       const query = { email };
@@ -73,6 +73,30 @@ async function run() {
         timestamp: Date.now()
       });
       res.send(result);
+    })
+
+    // manage user status and role
+    app.patch('/users/:email', verifyToken, async (req, res) => {
+      const email = req.params.email;
+      const query = { email };
+      // check already requested or no
+      const user = await userCollection.findOne(query);
+      if (!user || user?.status === 'Requested') return res.status(400).send('You have already requested, wait for some time.');
+      // update status
+      const updateDoc = {
+        $set: {
+          status: 'Requested'
+        }
+      }
+      const result = await userCollection.updateOne(query, updateDoc);
+      res.send(result);
+    })
+
+    // get user role
+    app.get('/users/role/:email', async (req, res) => {
+      const email = req.params.email;
+      const result = await userCollection.findOne({ email });
+      res.send({ role: result?.role })
     })
 
     // Generate jwt token
