@@ -100,6 +100,18 @@ async function run() {
       res.send(result);
     })
 
+    // update a user role & status
+    app.patch('/user/role/:email', verifyToken, async (req, res) => {
+      const email = req.params.email;
+      const { role } = req.body;
+      const filter = { email };
+      const updateDoc = {
+        $set: { role, status: 'Requested' },
+      }
+      const result = await userCollection.updateOne(filter, updateDoc);
+      res.send(result);
+    })
+
     // get user role
     app.get('/users/role/:email', async (req, res) => {
       const email = req.params.email;
