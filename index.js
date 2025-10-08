@@ -36,7 +36,9 @@ const verifyToken = async (req, res, next) => {
   })
 }
 
-const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.dqhfr.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`
+const uri = 'mongodb://localhost:27017'
+
+// const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.dqhfr.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`
 
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
@@ -53,6 +55,7 @@ async function run() {
     const db = client.db('plantNet-2')
     const userCollection = db.collection('users')
     const plantCollection = db.collection('plants')
+    const orderCollection = db.collection('orders')
 
     // save or update user
     app.post('/users/:email', async (req, res) => {
@@ -102,7 +105,7 @@ async function run() {
     })
 
     // save a plant data in db
-    app.post('/plants', async (req, res) => {
+    app.post('/plants', verifyToken, async (req, res) => {
       const plant = req.body;
       const result = await plantCollection.insertOne(plant);
       res.send(result);
@@ -111,6 +114,89 @@ async function run() {
     // get all plants from db
     app.get('/plants', async (req, res) => {
       const result = await plantCollection.find().toArray();
+      res.send(result);
+    })
+
+    // get a plant by id
+    app.get('/plants/:id', async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await plantCollection.findOne(query);
+      res.send(result);
+    })
+
+    // save or data in db
+    app.post('/order', verifyToken, async (req, res) => {
+      const orderInfo = req.body;
+      const result = await orderCollection.insertOne(orderInfo);
+      res.send(result);
+    })
+
+    // manage plant quantity (increase or decrease)
+    app.patch('/plants/quantity/:id', verifyToken, async (req, res) => {
+      const id = req.params.id;
+      const { quantityToUpdate, status } = req.body;
+      const filter = { _id: new ObjectId(id) };
+      let updateDoc = {
+        $inc: { quantity: -quantityToUpdate }
+      }
+      if (status === 'increase') {
+        updateDoc = {
+          $inc: { quantity: quantityToUpdate }
+        }
+      }
+      const result = await plantCollection.updateOne(filter, updateDoc);
+      res.send(result);
+    })
+
+    // get all orders for a specific user
+    app.get('/customer-orders/:email', verifyToken, async (req, res) => {
+      const email = req.params.email;
+      const result = await orderCollection.aggregate([
+        {
+          $match: { 'customer.email': email }
+        },
+        {
+          $addFields: {
+            plantId: { $toObjectId: '$plantId' }
+          }
+        },
+        {
+          $lookup: {
+            from: 'plants',
+            localField: 'plantId',
+            foreignField: '_id',
+            as: 'plants'
+          }
+        },
+        {
+          $unwind: '$plants'
+        },
+        {
+          $addFields: {
+            name: '$plants.name',
+            image: '$plants.image',
+            category: '$plants.category'
+          }
+        },
+        {
+          $project: {
+            plants: 0,
+          }
+        }
+      ]).toArray();
+      res.send(result);
+    })
+
+    // cancel/delete an order
+    app.delete('/orders/:id', verifyToken, async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      // status check with return status code
+      const order = await orderCollection.findOne(query);
+      if (order.status === 'Delivered') return res.status(409).send('Cannot cancel once the product is delivered');
+      // delete/cancel this product
+      const result = await orderCollection.deleteOne(query);
       res.send(result);
     })
 
