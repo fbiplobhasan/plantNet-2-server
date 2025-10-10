@@ -5,6 +5,7 @@ const cookieParser = require('cookie-parser')
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb')
 const jwt = require('jsonwebtoken')
 const morgan = require('morgan')
+const nodemailer = require("nodemailer");
 
 const port = process.env.PORT || 9000
 const app = express()
@@ -33,6 +34,44 @@ const verifyToken = async (req, res, next) => {
     }
     req.user = decoded
     next()
+  })
+}
+
+// send email useng nodemailer
+const sendEmail = (emailAddress, emailData) => {
+  // create transporter
+  const transporter = nodemailer.createTransport({
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false,
+    auth: {
+      user: process.env.NODEMAILER_USER,
+      pass: process.env.NODEMAILER_PASS,
+    }
+  })
+  // verifyconnection
+  transporter.verify((error, success) => {
+    if (error) {
+      console.log(error);
+    } else {
+      console.log('Transporter is ready to send emails', success);
+    }
+  })
+  // transporter.sendMail()
+  const mailBody = {
+    from: process.env.NODEMAILER_USER,
+    to: emailAddress,
+    subject: emailData?.subject,
+    html: `<p>${emailData?.message}</p>`,
+  }
+  // send email
+  transporter.sendMail(mailBody, (error, info) => {
+    if (error) {
+      console.log(error);
+    } else {
+      console.log(info);
+      console.log('Email Sent:' + info.response);
+    }
   })
 }
 
@@ -205,10 +244,25 @@ async function run() {
       res.send(result);
     })
 
-    // save or data in db
+    // save order data in db
     app.post('/order', verifyToken, async (req, res) => {
       const orderInfo = req.body;
       const result = await orderCollection.insertOne(orderInfo);
+      // send Email
+      if (result?.insertedId) {
+        // To Custemer
+        sendEmail(orderInfo?.customer?.email, {
+          subject: 'Order successful.',
+          message: `You've placed an order successfully. Transaction id: ${result?.insertedId}`
+        })
+
+        // To Seller
+        sendEmail(orderInfo.seller, {
+          subject: 'Hurray!, You have an order to process.',
+          message: `Get the plants ready for ${orderInfo?.customer?.name}`
+        })
+
+      }
       res.send(result);
     })
 
